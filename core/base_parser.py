@@ -100,6 +100,10 @@ class BaseParser(ABC):
             if i * 2 + 1 < len(data):
                 value = (data[i * 2] << 8) | data[i * 2 + 1]
                 values.append(value)
+            elif i * 2 < len(data):  # Handle odd final byte
+                # Pad with zero for the missing byte
+                value = (data[i * 2] << 8) | 0x00
+                values.append(value)
         return values
     
     def extract_32bit_values(self, data: List[int], num_values: int) -> List[int]:
@@ -109,5 +113,17 @@ class BaseParser(ABC):
             if i * 4 + 3 < len(data):
                 value = (data[i * 4] << 24) | (data[i * 4 + 1] << 16) | \
                        (data[i * 4 + 2] << 8) | data[i * 4 + 3]
+                values.append(value)
+            elif i * 4 + 2 < len(data):  # Handle 3 bytes available
+                value = (data[i * 4] << 24) | (data[i * 4 + 1] << 16) | \
+                       (data[i * 4 + 2] << 8) | 0x00
+                values.append(value)
+            elif i * 4 + 1 < len(data):  # Handle 2 bytes available
+                value = (data[i * 4] << 24) | (data[i * 4 + 1] << 16) | \
+                       0x00 << 8 | 0x00
+                values.append(value)
+            elif i * 4 < len(data):  # Handle 1 byte available
+                value = (data[i * 4] << 24) | 0x00 << 16 | \
+                       0x00 << 8 | 0x00
                 values.append(value)
         return values 

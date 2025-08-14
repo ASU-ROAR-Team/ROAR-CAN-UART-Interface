@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 """
 Drilling mechanism parser module.
+
+
+Important CAN DATA FORMAT:
+1. Platform height: 2 bytes
+2. Auger status: 1 byte
+3. Servo status: 1 byte
+4. Manual up active: 1 byte
+5. Manual down active: 1 byte
+
+In this exact order.
 """
+
 from typing import Dict, Any, List, Optional
 from .base_parser import BaseParser
 from .message import CanMessage
@@ -16,8 +27,22 @@ class DrillingParser(BaseParser):
     control, supporting both autonomous height commands and manual
     directional controls within a single frame.
     """
-    SCALING_FACTOR = 10.0  # Represents 10 mm per unit for 1mm precision
-    DRIVING_CAN_ID = 0x01  # Placeholder CAN ID. Please set a unique ID for your system.
+
+    def __init__(self):
+        """
+        Initialize the drilling parser.
+        """
+        
+        super().__init__()
+        self.SCALING_FACTOR = 10.0  # Represents 10 mm per unit for 1mm precision
+        self.DRIVING_CAN_ID = 0x01  # Placeholder CAN ID. Please set a unique ID for your system.
+        self.CAN_MESSAGE_FORMAT = {
+            "platform_height_cm": 0, # 2 bytes
+            "auger_status": 0, # 1 byte
+            "servo_status": 0, # 1 byte
+            "manual_up_active": 0, # 1 byte
+            "manual_down_active": 0, # 1 byte
+        }
 
     def parse(self, message: CanMessage) -> Optional[Dict[str, Any]]:
         """
@@ -26,45 +51,37 @@ class DrillingParser(BaseParser):
         Parameters
         ----------
         message : CanMessage
-            The received CAN message. Expected DLC is 3.
+            The received CAN message. Expected DLC is 6.
 
         Returns
         -------
         Optional[Dict[str, Any]]
             A dictionary of parsed drilling status data, or None if parsing fails.
         """
-        if message.dlc != 3:
+        if message.dlc != 6:
             rospy.logwarn(f"DrillingParser: Received message with unexpected DLC: {message.dlc}. Expected 3.")
             return None
 
         try:
+            data = message.data
+
             # Bytes 0-1: Height Data (Unsigned 16-bit)
             # The simulator or low-level controller sends its current height here.
-            height_raw = self.extract_16bit_values(message.data[0:2], 1)[0]
-            height_cm = float(height_raw) / self.SCALING_FACTOR
+            self.CAN_MESSAGE_FORMAT["platform_height_cm"] = (data[0] << 8 | data[1]) / self.SCALING_FACTOR
 
-            # Byte 2: Combined Control/Status Byte
-            control_status_byte = message.data[2]
-            
-            # Extract individual bit flags
-            gate_status = (control_status_byte >> 0) & 0x01  # Bit 0 for Gate
-            auger_status = (control_status_byte >> 1) & 0x01 # Bit 1 for Auger
-            manual_up_status = (control_status_byte >> 2) & 0x01 # Bit 2 for Manual Up
-            manual_down_status = (control_status_byte >> 3) & 0x01 # Bit 3 for Manual Down
+            # Byte 3-5: Control/Status Bytes
+            self.CAN_MESSAGE_FORMAT["auger_status"] = True if (data[2] & 0x01) == 1 else False
+            self.CAN_MESSAGE_FORMAT["servo_status"] = True if (data[3] & 0x01) == 1 else False
+            self.CAN_MESSAGE_FORMAT["manual_up_active"] = True if (data[4] & 0x01) == 1 else False
+            self.CAN_MESSAGE_FORMAT["manual_down_active"] = True if (data[5] & 0x01) == 1 else False
 
-            return {
-                "platform_height_cm": height_cm,
-                "auger_status": "ON" if auger_status == 1 else "OFF",
-                "servo_status": "OPEN" if gate_status == 1 else "CLOSED",
-                "manual_up_active": True if manual_up_status == 1 else False,
-                "manual_down_active": True if manual_down_status == 1 else False,
-            }
+            return self.CAN_MESSAGE_FORMAT
 
         except (IndexError, ValueError) as e:
             rospy.logerr(f"Error parsing drilling status message: {e}")
             return None
 
-    def create_command_message(self, target_height_cm: float, gate_open: bool, auger_on: bool, manual_up: bool, manual_down: bool) -> CanMessage:
+    def create_command_message(self, CAN_PARAMETERS: Dict[str, Any]) -> CanMessage:
         """
         Create a CAN message to command the drilling mechanism.
 
@@ -89,33 +106,28 @@ class DrillingParser(BaseParser):
         CanMessage
             A fully formed CAN message with a 3-byte payload ready for transmission.
         """
-        
+
         # Byte 0-1: Height Data (16-bit Unsigned)
         # Even in manual modes, we send the last known target height or current height.
         # The low-level controller decides whether to use it based on manual_up/down bits.
-        height_raw = int(target_height_cm * self.SCALING_FACTOR)
+        height_raw = int(CAN_PARAMETERS["platform_height_cm"] * self.SCALING_FACTOR)
         height_bytes = height_raw.to_bytes(2, 'big', signed=False) # Unsigned 16-bit
 
-        # Byte 2: Combined Control Byte
-        control_byte = 0x00
-        if gate_open:
-            control_byte |= (1 << 0) # Set Bit 0 for Gate Open
-        if auger_on:
-            control_byte |= (1 << 1) # Set Bit 1 for Auger On
-        if manual_up:
-            control_byte |= (1 << 2) # Set Bit 2 for Manual Up
-        if manual_down:
-            control_byte |= (1 << 3) # Set Bit 3 for Manual Down
-        
-        # Ensure only one manual direction is active
-        if manual_up and manual_down:
-            rospy.logwarn("Both manual_up and manual_down commanded. Defaulting to STOP.")
-            control_byte &= ~((1 << 2) | (1 << 3)) # Clear both bits
-        
         payload = [
-            height_bytes[0],
-            height_bytes[1],
-            control_byte
+            int(height_bytes[1]),
+            int(height_bytes[0]),
+            int(CAN_PARAMETERS["auger_status"]),
+            int(CAN_PARAMETERS["servo_status"]),
         ]
 
-        return CanMessage(can_id=self.DRIVING_CAN_ID, dlc=3, data=payload)
+
+
+        if "manual_status_flags" in CAN_PARAMETERS:
+            payload.append(int(CAN_PARAMETERS["manual_status_flags"]))
+            payload.append(int(CAN_PARAMETERS["manual_up_active"]))
+            payload.append(int(CAN_PARAMETERS["manual_down_active"]))
+        else:
+            payload.extend([0, 0, 0])
+        
+
+        return CanMessage(can_id=self.DRIVING_CAN_ID, dlc=6, data=payload)

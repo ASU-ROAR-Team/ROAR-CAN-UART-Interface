@@ -31,13 +31,13 @@ from roscan.messages.incoming.encoder_message import EncoderMessage
 from roscan.messages.incoming.gps_message import GpsLatitudeMessage, GpsLongitudeMessage
 from roscan.messages.incoming.imu_message import ImuOrientationMessage, ImuLinearAccelMessage
 from roscan.messages.incoming.load_cell_message import LoadCellMessage
-from roscan.messages.incoming.motor_control_message import MotorControlMessage
 from roscan.messages.incoming.test_message import TestMessage
 
 # Import outgoing messages
 from roscan.messages.outgoing.keyboard_control_message import KeyboardControlMessage
 from roscan.messages.outgoing.robot_arm_control_message import RobotArmControlMessage
 from roscan.messages.outgoing.motor_control_message import OutgoingMotorControlMessage
+from roscan.messages.outgoing.motor_control_message import MotorControlMessage
 
 
 class RoscanNode:

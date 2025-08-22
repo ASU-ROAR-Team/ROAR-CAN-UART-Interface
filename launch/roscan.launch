@@ -1,0 +1,72 @@
+<launch>
+    <!--
+    Launch file for the ROSCAN Bridge Node.
+    This file configures and starts the main node that bridges
+    ROS messages with the CAN bus via a UART serial connection.
+    -->
+
+    <!-- ================================================================= -->
+    <!-- Define Node Arguments with Default Values                         -->
+    <!-- ================================================================= -->
+
+    <!-- Communication Parameters -->
+    <arg name="port" default="/tmp/ttyS10" />
+    <arg name="baudrate" default="115200" />
+    <arg name="rate" default="10" />
+    <arg name="heartbeat_message" default="roscan_bridge:running" />
+
+    <!-- CAN Frame IDs -->
+    <arg name="gps_latitude_frame_id"       default="0x120" />
+    <arg name="gps_longitude_frame_id"      default="0x121" />
+    <arg name="imu_orientation_frame_id"    default="0x200" />
+    <arg name="imu_linear_accel_frame_id"   default="0x201" />
+    <arg name="encoder_frame_id"            default="0x222" />
+    <arg name="test_frame_id"               default="0x123" />
+    <arg name="load_cell_frame_id"          default="0xFAD" />
+    <arg name="motor_control_frame_id"      default="0x301" />
+
+    <!-- ROS Topic Names -->
+    <arg name="gps_topic"                   default="gpsData" />
+    <arg name="imu_topic"                   default="imuData" />
+    <arg name="encoder_topic"               default="encoderData" />
+    <arg name="test_topic"                  default="testCanData" />
+    <arg name="load_cells_topic"            default="/load_cells" />
+    <arg name="heartbeat_topic"             default="/system/heartbeat" />
+    <arg name="cmd_vel_topic"               default="/cmd_vel" />
+    <arg name="arm_joint_velocities_topic"  default="/robot/joint_command" />
+    <arg name="motor_control_cmd_topic"     default="/motor_control_cmd" />
+
+
+    <!-- ================================================================= -->
+    <!-- Start the ROSCAN Bridge Node                                      -->
+    <!-- ================================================================= -->
+    <node pkg="roscan" type="roscan_node.py" name="ros_uart_bridge" output="screen">
+    
+        <!-- Pass all arguments as private parameters to the node -->
+        <param name="port" value="$(arg port)" />
+        <param name="baudrate" value="$(arg baudrate)" />
+        <param name="rate" value="$(arg rate)" />
+        <param name="heartbeat_message" value="$(arg heartbeat_message)" />
+        
+        <!-- Frame ID Parameters (names must match keys in configuration.py) -->
+        <param name="gps_latitude_frame_id" value="$(arg gps_latitude_frame_id)" />
+        <param name="gps_longitude_frame_id" value="$(arg gps_longitude_frame_id)" />
+        <param name="imu_orientation_frame_id" value="$(arg imu_orientation_frame_id)" />
+        <param name="imu_linear_accel_frame_id" value="$(arg imu_linear_accel_frame_id)" />
+        <param name="encoder_frame_id" value="$(arg encoder_frame_id)" />
+        <param name="test_frame_id" value="$(arg test_frame_id)" />
+        <param name="load_cell_frame_id" value="$(arg load_cell_frame_id)" />
+        <param name="motor_control_frame_id" value="$(arg motor_control_frame_id)" />
+
+        <!-- Topic Name Parameters (names must match keys in configuration.py) -->
+        <param name="gps_topic" value="$(arg gps_topic)" />
+        <param name="imu_topic" value="$(arg imu_topic)" />
+        <param name="encoder_topic" value="$(arg encoder_topic)" />
+        <param name="test_topic" value="$(arg test_topic)" />
+        <param name="load_cells_topic" value="$(arg load_cells_topic)" />
+        <param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
+        <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
+        <param name="arm_joint_velocities_topic" value="$(arg arm_joint_velocities_topic)" />
+        <param name="motor_control_cmd_topic" value="$(arg motor_control_cmd_topic)" />
+    </node>
+</launch>

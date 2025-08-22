@@ -1,173 +1,82 @@
-# CAN Message Parsers
+# ROSCAN Package - Restructured Architecture
 
-A Python library for parsing CAN bus messages with support for various data formats, UART communication, and specialized parsers for different sensor types.
+## Overview
 
-## Project Structure
+This is the restructured version of the ROSCAN package, organized following modern OOP principles and Python packaging best practices.
+
+## Directory Structure
 
 ```
-parsers/
-├── README.md                 # This file
-├── requirements.txt          # Python dependencies
-├── core/                    # Core infrastructure
-│   ├── __init__.py         # Core package initialization
-│   ├── message.py          # CAN message data structure and formatting
-│   ├── uart_can_interface.py # UART communication interface
-│   └── base_parser.py      # Abstract base parser class with utilities
-├── parsers/                 # Specialized message parsers
-│   ├── __init__.py         # Parsers package initialization
-│   ├── encoder_parser.py   # Encoder data parser (10-bit segments)
-│   ├── gps_parser.py       # GPS coordinate parsers
-│   └── robot_arm_parser.py # Robot arm control parser
-└── tests/                   # Test files
-    ├── __init__.py         # Test package initialization
-    ├── test_10bit_extraction.py # 10-bit extraction tests
-    └── debug_test.py       # Debug utilities
+src/roscan/
+├── communication/          # Serial communication handling
+├── config/                 # Configuration management
+├── core/                   # Base classes and shared utilities
+├── handlers/               # Data processing handlers
+│   ├── incoming/           # Handlers for incoming CAN data
+│   │   ├── control/        # Control-related handlers
+│   │   └── sensors/        # Sensor data handlers
+│   └── outgoing/           # Handlers for outgoing ROS messages
+├── managers/               # Component coordination
+├── node/                   # Main node implementation
+├── parsers/                # Message parsing components
+│   ├── incoming/           # Parsers for incoming CAN data
+│   │   ├── control/        # Control message parsers
+│   │   ├── sensors/        # Sensor data parsers
+│   │   └── utility/        # Utility parsers
+│   └── outgoing/           # Parsers for outgoing ROS messages
+│       ├── control/        # Control message parsers
+│       └── utility/        # Utility parsers
+├── tests/                  # Test modules
+└── utils/                  # Utility functions
 ```
 
-## Features
+## Key Components
 
-- **CAN Message Handling**: Complete message structure with framing, checksums, and validation
-- **UART Communication**: Robust UART interface with state machine parsing
-- **Flexible Parsing**: Abstract base class with utility methods for bit manipulation
-- **Specialized Parsers**: Ready-to-use parsers for encoders, GPS, and robot control
-- **10-bit Segment Support**: Built-in support for extracting 10-bit segments from byte arrays
+### Communication
+Handles UART serial communication with the CAN bus.
 
-## Installation
+### Configuration
+Centralized management of ROS parameters, frame IDs, and topic names.
 
-1. Clone the repository:
-```bash
-git clone <your-repo-url>
-cd parsers
-```
+### Core
+Base classes and shared utilities used throughout the package.
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### Handlers
+Process parsed data and publish to ROS topics or handle outgoing messages.
 
-## Quick Start
+### Managers
+Coordinate components and provide centralized access.
 
-### Basic CAN Message Usage
+### Node
+Main ROS node implementation that ties everything together.
+
+### Parsers
+Convert between CAN frames and structured data.
+
+## Development Guidelines
+
+1. **Adding New Parsers**: Place in appropriate subdirectory under `parsers/` and register in `RoscanBridgeNode`
+2. **Adding New Handlers**: Place in appropriate subdirectory under `handlers/` and register in `RoscanBridgeNode`
+3. **Configuration Changes**: Modify `config/configuration.py` and update parameter registration
+4. **New Functionality**: Follow existing patterns and maintain consistency with current architecture
+
+## Import Examples
 
 ```python
-from core.message import CanMessage
+# Import core components
+from roscan.core.base_parser import BaseParser
+from roscan.core.can_frame import CanFrame
 
-# Create a CAN message
-msg = CanMessage(0x123, 4, [0xDE, 0xAD, 0xBE, 0xEF])
+# Import configuration
+from roscan.config.configuration import RoscanConfig
 
-# Convert to bytes for transmission
-data = msg.to_bytes()
+# Import managers
+from roscan.managers.component_managers import ParserManager, HandlerManager
 
-# Parse from received bytes
-received_msg = CanMessage.from_bytes(data)
+# Import parsers
+from roscan.parsers.incoming.sensors import EncoderParser
+from roscan.parsers.outgoing.control import KeyboardControlParser
+
+# Import handlers
+from roscan.handlers.incoming.sensors import GpsCoordinatePairer
 ```
-
-### UART Communication
-
-```python
-from core.uart_can_interface import UartCanInterface
-from core.message import CanMessage
-
-# Initialize interface
-interface = UartCanInterface('/dev/ttyUSB0', 115200)
-
-# Connect and send message
-interface.connect()
-msg = CanMessage(0x123, 2, [0xDE, 0xAD])
-interface.send_message(msg)
-
-# Receive messages
-for received_msg in interface.receive_messages():
-    print(f"Received: {received_msg}")
-    
-interface.disconnect()
-```
-
-### Using Parsers
-
-```python
-from parsers.encoder_parser import EncoderParser
-from core.message import CanMessage
-
-# Create parser
-parser = EncoderParser()
-
-# Parse encoder data
-msg = CanMessage(0x456, 5, [0x12, 0x34, 0x56, 0x78, 0x9A])
-result = parser.parse(msg)
-
-if result:
-    print(f"Encoder values: {result['encoder_values']}")
-```
-
-## Architecture
-
-### Core Components
-
-- **CanMessage**: Data structure for CAN messages with validation and serialization
-- **UartCanInterface**: Handles UART communication and message framing
-- **BaseParser**: Abstract base class providing common parsing utilities
-
-### Parser System
-
-All parsers inherit from `BaseParser` and implement the `parse()` method. The base class provides:
-
-- 10-bit segment extraction
-- 16-bit and 32-bit value extraction
-- Bit manipulation utilities
-
-### Communication Layer
-
-The UART interface implements a robust state machine for parsing incoming CAN message frames, handling:
-
-- Message framing (start/end bytes)
-- Checksum validation
-- Error recovery and state reset
-
-## Data Formats
-
-### CAN Message Frame
-
-```
-[0xAA] [ID:2bytes] [DLC:1byte] [Data:0-8bytes] [Checksum:1byte] [0x55]
-```
-
-### 10-bit Segment Extraction
-
-For data like encoder readings that use 10-bit segments:
-
-- **Segment 1**: Bits 0-9 from bytes 0-1
-- **Segment 2**: Bits 10-19 from bytes 1-2
-- **Segment 3**: Bits 20-29 from bytes 2-3
-
-## Testing
-
-Run the test suite:
-
-```bash
-# Test 10-bit extraction
-python3 tests/test_10bit_extraction.py
-
-# Debug utilities
-python3 tests/debug_test.py
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-[Add your license here]
-
-## TODO
-
-- [ ] Add more specialized parsers
-- [ ] Implement CAN bus interface (not just UART)
-- [ ] Add configuration file support
-- [ ] Improve error handling and logging
-- [ ] Add performance benchmarks 

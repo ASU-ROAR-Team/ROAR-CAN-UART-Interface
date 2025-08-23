@@ -28,7 +28,7 @@ class OutgoingMotorControlMessage(BaseMessage):
 
     def build(self, msg: Float32MultiArray) -> Optional[CanFrame]:
         """
-        Builds a CAN frame from a Float32MultiArray message.
+        Builds a CAN frame from a Float32MultiArray message for 6 motors.
 
         Args:
             msg: The Float32MultiArray message to build the CAN frame from.
@@ -37,19 +37,25 @@ class OutgoingMotorControlMessage(BaseMessage):
             The built CAN frame, or None if building fails.
         """
         try:
-            # Expecting exactly 2 motor values (left and right)
-            if len(msg.data) != 2:
-                raise BuildingError(f"Expected 2 motor values, got {len(msg.data)}")
-            
-            # Scale the motor values to fit in 4 bytes each (signed integer)
-            left_motor = int(msg.data[0] * 1000)  # Scale by 1000
-            right_motor = int(msg.data[1] * 1000)  # Scale by 1000
+            max_motor_rpm = 15.0  # Maximum absolute RPM value
 
-            # Convert to bytes (4 bytes each, little endian, signed)
-            data = list(left_motor.to_bytes(4, 'little', signed=True)) + \
-                   list(right_motor.to_bytes(4, 'little', signed=True))
+            # Expecting exactly 6 motor values: [right_front, right_middle, right_rear, left_front, left_middle, left_rear]
+            if len(msg.data) != 6:
+                raise BuildingError(f"Expected 6 motor values, got {len(msg.data)}")
 
-            return CanFrame(can_id=self.can_id, dlc=len(data), data=data)
+            # Clamp and map each motor RPM to a single byte (0-127, 64 is zero)
+            def map_rpm_to_signal(rpm: float) -> int:
+                rpm = max(-max_motor_rpm, min(max_motor_rpm, rpm))
+                signal = int(rpm * (63 / max_motor_rpm) + 64)
+                return max(0, min(127, signal))
+
+            right_signals = [map_rpm_to_signal(msg.data[i]) for i in range(3)]  # right_front, right_middle, right_rear
+            left_signals = [map_rpm_to_signal(msg.data[i]) for i in range(3, 6)]  # left_front, left_middle, left_rear
+
+            # Compose the 8-byte CAN frame: [right_front, right_middle, right_rear, left_front, left_middle, left_rear, 0, 0]
+            frame_data = right_signals + left_signals + [0, 0]
+
+            return CanFrame(can_id=self.can_id, dlc=len(frame_data), data=frame_data)
 
         except Exception as e:
             rospy.logerr(f"Error building motor control frame: {e}")

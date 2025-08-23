@@ -96,7 +96,7 @@ class RoscanNode:
         self.ENCODER_FRAME_ID = rospy.get_param("~encoder_frame_id", 0x222)
         self.TEST_FRAME_ID = rospy.get_param("~test_frame_id", 0x123)
         self.LOAD_CELL_FRAME_ID = rospy.get_param("~load_cell_frame_id", 0xFAD)
-        self.MOTOR_CONTROL_FRAME_ID = rospy.get_param("~motor_control_frame_id", 0x301)
+        self.MOTOR_CONTROL_FRAME_ID = rospy.get_param("~motor_control_frame_id", 0x6A5)
         self.DRILLING_STATUS_FRAME_ID = rospy.get_param("~drilling_status_frame_id", 0x400) 
         self.DRILLING_COMMAND_FRAME_ID = rospy.get_param("~drilling_command_frame_id", 0x333)
         
@@ -128,7 +128,7 @@ class RoscanNode:
         self.keyboard_control_parser = KeyboardControlParser(0x100) # TODO: Get from params
         self.robot_arm_control_message = RobotArmControlMessage(0x101)  # TODO: Get from params
         self.motor_control_message = OutgoingMotorControlMessage(self.MOTOR_CONTROL_FRAME_ID)  # TODO: Get from params
-        self.drilling_command_message = OutgoingDrillingCommandMessage(0x333)  # TODO: Get from params
+        self.drilling_command_message = OutgoingDrillingCommandMessage(self.DRILLING_COMMAND_FRAME_ID)  # TODO: Get from params
 
 
     def _process_frame(self, frame_id: int, data: list) -> None:

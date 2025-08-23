@@ -37,7 +37,7 @@ from roscan.messages.incoming.test_message import TestMessage
 from roscan.messages.outgoing.keyboard_control_message import KeyboardControlMessage
 from roscan.messages.outgoing.robot_arm_control_message import RobotArmControlMessage
 from roscan.messages.outgoing.motor_control_message import OutgoingMotorControlMessage
-from roscan.messages.outgoing.motor_control_message import MotorControlMessage
+# from roscan.messages.outgoing.motor_control_message import MotorControlMessage
 
 
 class RoscanNode:
@@ -116,7 +116,7 @@ class RoscanNode:
         self.message_registry.register(ImuOrientationMessage(self.IMU_ORIENTATION_FRAME_ID, self.imu_pub))
         self.message_registry.register(ImuLinearAccelMessage(self.IMU_LINEAR_ACCEL_FRAME_ID, self.imu_pub))
         self.message_registry.register(LoadCellMessage(self.LOAD_CELL_FRAME_ID, self.load_cell_pub))
-        self.message_registry.register(MotorControlMessage(self.MOTOR_CONTROL_FRAME_ID, self.motor_control_pub))
+        # self.message_registry.register(OutgoingMotorControlMessage(self.MOTOR_CONTROL_FRAME_ID, self.motor_control_pub))
 
         self.keyboard_control_message = KeyboardControlMessage(0x100)  # TODO: Get from params
         self.robot_arm_control_message = RobotArmControlMessage(0x101)  # TODO: Get from params
@@ -294,6 +294,7 @@ def main():
         node.run()
     except Exception as e:
         rospy.logfatal(f"Failed to start ROSCAN Node: {e}")
+
 
 
 if __name__ == "__main__":

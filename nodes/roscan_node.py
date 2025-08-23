@@ -35,7 +35,7 @@ from roscan.messages.incoming.test_message import TestMessage
 from roscan.messages.incoming.drilling_message import DrillingStatusMessage 
 
 # Import outgoing messages
-from roscan.messages.outgoing.keyboard_control_message import KeyboardControlMessage
+from roscan.messages.outgoing.keyboard_control_message import KeyboardControlParser
 from roscan.messages.outgoing.robot_arm_control_message import RobotArmControlMessage
 from roscan.messages.outgoing.motor_control_message import OutgoingMotorControlMessage
 from roscan.messages.outgoing.drilling_control_message import OutgoingDrillingCommandMessage 
@@ -69,7 +69,7 @@ class RoscanNode:
         self.motor_control_pub = rospy.Publisher("/motor_control", Float32MultiArray, queue_size=10)
 
         # ROS Subscribers
-        rospy.Subscriber(self.cmd_vel_topic, Twist, self._keyboard_control_callback)
+        rospy.Subscriber(self.cmd_vel_topic, Float32MultiArray, self._keyboard_control_callback)
         rospy.Subscriber(self.arm_joint_velocities_topic, PoseStamped, self._robot_arm_control_callback)
         rospy.Subscriber(self.motor_control_cmd_topic, Float32MultiArray, self._motor_control_callback)
         rospy.Subscriber(self.drilling_command_topic, DrillingCommand, self._drilling_command_callback)
@@ -125,7 +125,7 @@ class RoscanNode:
         self.message_registry.register(LoadCellMessage(self.LOAD_CELL_FRAME_ID, self.load_cell_pub))
         self.message_registry.register(DrillingStatusMessage(0x400, self.drilling_status_pub))
 
-        self.keyboard_control_message = KeyboardControlMessage(0x100)  # TODO: Get from params
+        self.keyboard_control_parser = KeyboardControlParser(0x100) # TODO: Get from params
         self.robot_arm_control_message = RobotArmControlMessage(0x101)  # TODO: Get from params
         self.motor_control_message = OutgoingMotorControlMessage(self.MOTOR_CONTROL_FRAME_ID)  # TODO: Get from params
         self.drilling_command_message = OutgoingDrillingCommandMessage(0x333)  # TODO: Get from params
@@ -252,12 +252,12 @@ class RoscanNode:
                 rospy.logwarn(f"Failed to parse data for DrillingStatus frame ID 0x{frame_id:03X}")
         else:
             rospy.logwarn(f"No DrillingStatus message handler found for frame ID 0x{frame_id:03X}")
-    
-    def _keyboard_control_callback(self, msg: Twist) -> None:
+
+    def _keyboard_control_callback(self, msg: Float32MultiArray) -> None:
         """Handle keyboard control messages from ROS."""
-        rospy.loginfo("Twist message received")
+        rospy.loginfo("Float32MultiArray message received")
         try:
-            can_frame = self.keyboard_control_message.build(msg)
+            can_frame = self.keyboard_control_parser.parse(msg)
             if can_frame:
                 self.communication_manager.send_frame(can_frame.can_id, can_frame.data)
             else:

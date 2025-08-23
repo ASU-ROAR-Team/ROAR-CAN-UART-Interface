@@ -14,12 +14,12 @@ from typing import Dict, Any
 # ROS message imports
 from can_msgs.msg import Frame
 from std_msgs.msg import String, Float32MultiArray, Float32
-from roar_msgs.msg import EncoderStamped
+from roar_msgs.msg import EncoderStamped, DrillingStatus, DrillingCommand # Added DrillingStatus and DrillingCommand
 from geometry_msgs.msg import Twist, PoseStamped
 from sensor_msgs.msg import NavSatFix, Imu
 
 # Import our restructured components
-from roscan.dummy_communication_manager import CommunicationManager
+from roscan.dummy_communication_manager import CommunicationManager # Changed from dummy_communication_manager
 from roscan.messages.registry import MessageRegistry
 from roscan.core.can_frame import CanFrame
 from roscan.core.exceptions import RoscanError, ParsingError
@@ -32,12 +32,13 @@ from roscan.messages.incoming.gps_message import GpsLatitudeMessage, GpsLongitud
 from roscan.messages.incoming.imu_message import ImuOrientationMessage, ImuLinearAccelMessage
 from roscan.messages.incoming.load_cell_message import LoadCellMessage
 from roscan.messages.incoming.test_message import TestMessage
+from roscan.messages.incoming.drilling_message import DrillingStatusMessage 
 
 # Import outgoing messages
 from roscan.messages.outgoing.keyboard_control_message import KeyboardControlMessage
 from roscan.messages.outgoing.robot_arm_control_message import RobotArmControlMessage
 from roscan.messages.outgoing.motor_control_message import OutgoingMotorControlMessage
-from roscan.messages.outgoing.motor_control_message import MotorControlMessage
+from roscan.messages.outgoing.drilling_control_message import OutgoingDrillingCommandMessage 
 
 
 class RoscanNode:
@@ -64,12 +65,14 @@ class RoscanNode:
         self.encoder_pub = rospy.Publisher(self.encoder_topic, EncoderStamped, queue_size=10)
         self.test_pub = rospy.Publisher(self.test_topic, String, queue_size=10)
         self.load_cell_pub = rospy.Publisher(self.load_cells_topic, Float32, queue_size=10)
+        self.drilling_status_pub = rospy.Publisher(self.drilling_status_topic, DrillingStatus, queue_size=10)
         self.motor_control_pub = rospy.Publisher("/motor_control", Float32MultiArray, queue_size=10)
 
         # ROS Subscribers
         rospy.Subscriber(self.cmd_vel_topic, Twist, self._keyboard_control_callback)
         rospy.Subscriber(self.arm_joint_velocities_topic, PoseStamped, self._robot_arm_control_callback)
         rospy.Subscriber(self.motor_control_cmd_topic, Float32MultiArray, self._motor_control_callback)
+        rospy.Subscriber(self.drilling_command_topic, DrillingCommand, self._drilling_command_callback)
         
         # Initialize messages
         self._initialize_messages()
@@ -83,7 +86,7 @@ class RoscanNode:
         """Load ROS parameters."""
         self.port = rospy.get_param("~port", "/dev/ttyTHS0")
         self.baudrate = rospy.get_param("~baudrate", 115200)
-        self.rate = rospy.Rate(rospy.get_param("~rate", 10))
+        self.rate = rospy.Rate(rospy.get_param("~rate",10))
         
         # Frame IDs
         self.GPS_LATITUDE_FRAME_ID = rospy.get_param("~gps_latitude_frame_id", 0x120)
@@ -94,6 +97,8 @@ class RoscanNode:
         self.TEST_FRAME_ID = rospy.get_param("~test_frame_id", 0x123)
         self.LOAD_CELL_FRAME_ID = rospy.get_param("~load_cell_frame_id", 0xFAD)
         self.MOTOR_CONTROL_FRAME_ID = rospy.get_param("~motor_control_frame_id", 0x301)
+        self.DRILLING_STATUS_FRAME_ID = rospy.get_param("~drilling_status_frame_id", 0x400) 
+        self.DRILLING_COMMAND_FRAME_ID = rospy.get_param("~drilling_command_frame_id", 0x333)
         
         # Topic names
         self.gps_topic = rospy.get_param("~gps_topic", "gpsData")
@@ -105,6 +110,8 @@ class RoscanNode:
         self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "/cmd_vel")
         self.arm_joint_velocities_topic = "/robot/joint_command"
         self.motor_control_cmd_topic = rospy.get_param("~motor_control_cmd_topic", "/motor_control_cmd")
+        self.drilling_status_topic = rospy.get_param("~drilling_status_topic", "/drilling_status")
+        self.drilling_command_topic = rospy.get_param("~drilling_command_topic", "/drilling_command")
         self.heartbeat_message = rospy.get_param("~heartbeat_message", "roscan_bridge:running")
     
     def _initialize_messages(self) -> None:
@@ -116,11 +123,13 @@ class RoscanNode:
         self.message_registry.register(ImuOrientationMessage(self.IMU_ORIENTATION_FRAME_ID, self.imu_pub))
         self.message_registry.register(ImuLinearAccelMessage(self.IMU_LINEAR_ACCEL_FRAME_ID, self.imu_pub))
         self.message_registry.register(LoadCellMessage(self.LOAD_CELL_FRAME_ID, self.load_cell_pub))
-        self.message_registry.register(MotorControlMessage(self.MOTOR_CONTROL_FRAME_ID, self.motor_control_pub))
+        self.message_registry.register(DrillingStatusMessage(0x400, self.drilling_status_pub))
 
         self.keyboard_control_message = KeyboardControlMessage(0x100)  # TODO: Get from params
         self.robot_arm_control_message = RobotArmControlMessage(0x101)  # TODO: Get from params
         self.motor_control_message = OutgoingMotorControlMessage(self.MOTOR_CONTROL_FRAME_ID)  # TODO: Get from params
+        self.drilling_command_message = OutgoingDrillingCommandMessage(0x333)  # TODO: Get from params
+
 
     def _process_frame(self, frame_id: int, data: list) -> None:
         """Process a received CAN frame."""
@@ -226,6 +235,24 @@ class RoscanNode:
         except Exception as e:
             rospy.logerr(f"Error publishing IMU data: {e}")
     
+    def _handle_drilling_status_frame(self, frame_id: int, data: list) -> None:
+        """Handle DrillingStatus frames."""
+        message = self.message_registry.get_message(frame_id)
+        if message:
+            frame = CanFrame(can_id=frame_id, dlc=len(data), data=data)
+            parsed_data = message.parse(frame)
+            if parsed_data:
+                # The DrillingStatusMessage's handle method directly publishes the ROS message
+                message.handle(parsed_data)
+                rospy.logdebug(
+                    f"Published DrillingStatus data: Height={parsed_data['current_height']:.2f} cm, "
+                    f"Weight={parsed_data['current_weight']:.2f} g"
+                )
+            else:
+                rospy.logwarn(f"Failed to parse data for DrillingStatus frame ID 0x{frame_id:03X}")
+        else:
+            rospy.logwarn(f"No DrillingStatus message handler found for frame ID 0x{frame_id:03X}")
+    
     def _keyboard_control_callback(self, msg: Twist) -> None:
         """Handle keyboard control messages from ROS."""
         rospy.loginfo("Twist message received")
@@ -261,6 +288,23 @@ class RoscanNode:
                 rospy.logerr("Failed to parse Float32MultiArray into a CAN frame.")
         except Exception as e:
             rospy.logerr(f"Error in motor control callback: {e}")
+
+    def _drilling_command_callback(self, msg: DrillingCommand) -> None:
+        """Handle drilling command messages from ROS and send them as CAN frames."""
+        try:
+            rospy.loginfo("DrillingCommand message received")
+            can_frame = self.drilling_command_message.build(msg)
+            if can_frame:
+                self.communication_manager.send_frame(can_frame.can_id, can_frame.data)
+                rospy.logdebug(
+                    f"Sent DrillingCommand CAN frame 0x{can_frame.can_id:03X}: "
+                    f"Height={msg.target_height_cm:.2f}cm, Gate={msg.gate_open}, "
+                    f"Auger={msg.auger_on}, Up={msg.manual_up}, Down={msg.manual_down}"
+                )
+            else:
+                rospy.logerr("Failed to build DrillingCommand into a CAN frame.")
+        except Exception as e:
+            rospy.logerr(f"Error in drilling command callback: {e}")
     
     def run(self) -> None:
         """Run the main loop of the ROSCAN node."""
@@ -294,6 +338,7 @@ def main():
         node.run()
     except Exception as e:
         rospy.logfatal(f"Failed to start ROSCAN Node: {e}")
+
 
 
 if __name__ == "__main__":

@@ -49,11 +49,12 @@ class OutgoingMotorControlMessage(BaseMessage):
                 signal = int(rpm * (63 / max_motor_rpm) + 64)
                 return max(0, min(127, signal))
 
-            right_signals = [map_rpm_to_signal(msg.data[i]) for i in range(3)]  # right_front, right_middle, right_rear
-            left_signals = [map_rpm_to_signal(msg.data[i]) for i in range(3, 6)]  # left_front, left_middle, left_rear
-
+            left_signals = [map_rpm_to_signal(msg.data[i]) for i in range(3)]  # right_front, right_middle, right_rear
+            right_signals = [map_rpm_to_signal(msg.data[i]) for i in range(3, 6)]  # left_front, left_middle, left_rear
+            print(f"Motor signals: Right: {right_signals}, Left: {left_signals}")
             # Compose the 8-byte CAN frame: [right_front, right_middle, right_rear, left_front, left_middle, left_rear, 0, 0]
             frame_data = right_signals + left_signals + [0, 0]
+            
 
             return CanFrame(can_id=self.can_id, dlc=len(frame_data), data=frame_data)
 

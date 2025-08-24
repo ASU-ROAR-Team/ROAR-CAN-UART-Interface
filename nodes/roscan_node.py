@@ -35,10 +35,11 @@ from roscan.messages.incoming.test_message import TestMessage
 from roscan.messages.incoming.drilling_message import DrillingStatusMessage 
 
 # Import outgoing messages
-from roscan.messages.outgoing.keyboard_control_message import KeyboardControlParser
+from roscan.messages.outgoing.keyboard_control_message import KeyboardControlMessage
 from roscan.messages.outgoing.robot_arm_control_message import RobotArmControlMessage
 from roscan.messages.outgoing.motor_control_message import OutgoingMotorControlMessage
 from roscan.messages.outgoing.drilling_control_message import OutgoingDrillingCommandMessage 
+from std_msgs.msg import Float64MultiArray
 
 
 class RoscanNode:
@@ -70,7 +71,7 @@ class RoscanNode:
 
         # ROS Subscribers
         rospy.Subscriber(self.cmd_vel_topic, Float32MultiArray, self._keyboard_control_callback)
-        rospy.Subscriber(self.arm_joint_velocities_topic, PoseStamped, self._robot_arm_control_callback)
+        rospy.Subscriber(self.arm_joint_position_topic, Float64MultiArray, self._robot_arm_control_callback)
         rospy.Subscriber(self.motor_control_cmd_topic, Float32MultiArray, self._motor_control_callback)
         rospy.Subscriber(self.drilling_command_topic, DrillingCommand, self._drilling_command_callback)
         
@@ -99,6 +100,7 @@ class RoscanNode:
         self.MOTOR_CONTROL_FRAME_ID = rospy.get_param("~motor_control_frame_id", 0x6A5)
         self.DRILLING_STATUS_FRAME_ID = rospy.get_param("~drilling_status_frame_id", 0x400) 
         self.DRILLING_COMMAND_FRAME_ID = rospy.get_param("~drilling_command_frame_id", 0x333)
+        self.ROBOT_ARM_CONTROL_FRAME_ID = rospy.get_param("~robot_arm_control_frame_id", 0x004)
         
         # Topic names
         self.gps_topic = rospy.get_param("~gps_topic", "gpsData")
@@ -108,7 +110,7 @@ class RoscanNode:
         self.test_topic = rospy.get_param("~test_topic", "testCanData")
         self.heartbeat_topic = rospy.get_param("~heartbeat_topic", "/system/heartbeat")
         self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "/cmd_vel")
-        self.arm_joint_velocities_topic = "/robot/joint_command"
+        self.arm_joint_position_topic = rospy.get_param("~arm_joint_position_topic", "/arm_joint_values")
         self.motor_control_cmd_topic = rospy.get_param("~motor_control_cmd_topic", "/motor_control_cmd")
         self.drilling_status_topic = rospy.get_param("~drilling_status_topic", "/drilling_status")
         self.drilling_command_topic = rospy.get_param("~drilling_command_topic", "/drilling_command")
@@ -125,10 +127,10 @@ class RoscanNode:
         self.message_registry.register(LoadCellMessage(self.LOAD_CELL_FRAME_ID, self.load_cell_pub))
         self.message_registry.register(DrillingStatusMessage(0x400, self.drilling_status_pub))
 
-        self.keyboard_control_parser = KeyboardControlParser(0x100) # TODO: Get from params
-        self.robot_arm_control_message = RobotArmControlMessage(0x101)  # TODO: Get from params
-        self.motor_control_message = OutgoingMotorControlMessage(self.MOTOR_CONTROL_FRAME_ID)  # TODO: Get from params
-        self.drilling_command_message = OutgoingDrillingCommandMessage(self.DRILLING_COMMAND_FRAME_ID)  # TODO: Get from params
+        self.keyboard_control_parser = KeyboardControlMessage(0x100) # TODO: Get from params
+        self.robot_arm_control_message = RobotArmControlMessage(0x004)
+        self.motor_control_message = OutgoingMotorControlMessage(0x6A5)  # TODO: Get from params
+        self.drilling_command_message = OutgoingDrillingCommandMessage(0x333)  # TODO: Get from params
 
 
     def _process_frame(self, frame_id: int, data: list) -> None:
@@ -265,7 +267,7 @@ class RoscanNode:
         except Exception as e:
             rospy.logerr(f"Error in keyboard control callback: {e}")
     
-    def _robot_arm_control_callback(self, msg: PoseStamped) -> None:
+    def _robot_arm_control_callback(self, msg: Float64MultiArray) -> None:
         """Handle robot arm control messages from ROS."""
         try:
             rospy.loginfo("Robot arm control callback triggered")
@@ -273,7 +275,7 @@ class RoscanNode:
             if can_frame:
                 self.communication_manager.send_frame(can_frame.can_id, can_frame.data)
             else:
-                rospy.logerr("Failed to parse PoseStamped into a CAN frame.")
+                rospy.logerr("Failed to parse Float64MultiArray into a CAN frame.")
         except Exception as e:
             rospy.logerr(f"Error in robot arm control callback: {e}")
     

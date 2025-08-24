@@ -26,6 +26,7 @@
     <arg name="drilling_status_frame_id"    default="0x400" />
     <arg name="motor_control_frame_id"      default="0x301" />
     <arg name="drilling_command_frame_id"   default="0x333" />
+    <arg name="robot_arm_control_frame_id"  default="0x004" />
 
     <!-- ROS Topic Names -->
     <arg name="gps_topic"                   default="gpsData" />
@@ -36,7 +37,7 @@
     <arg name="drilling_status_topic"       default="/drilling/feedback" />
     <arg name="heartbeat_topic"             default="/system/heartbeat" />
     <arg name="cmd_vel_topic"               default="/cmd_vel" />
-    <arg name="arm_joint_velocities_topic"  default="/robot/joint_command" />
+    <arg name="arm_joint_position_topic"    default="/arm_joint_values" />
     <arg name="motor_control_cmd_topic"     default="/motor_control_cmd" />
     <arg name="drilling_command_topic"      default="/drilling/command_to_actuators" />
 
@@ -63,6 +64,7 @@
         <param name="drilling_status_frame_id" value="$(arg drilling_status_frame_id)" />
         <param name="motor_control_frame_id" value="$(arg motor_control_frame_id)" />
         <param name="drilling_command_frame_id" value="$(arg drilling_command_frame_id)"/>
+        <param name="robot_arm_control_frame_id" value="$(arg robot_arm_control_frame_id)"/>
 
         <!-- Topic Name Parameters (names must match keys in configuration.py) -->
         <param name="gps_topic" value="$(arg gps_topic)" />
@@ -73,7 +75,7 @@
         <param name="drilling_status_topic" value="$(arg drilling_status_topic)" />
         <param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
         <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
-        <param name="arm_joint_velocities_topic" value="$(arg arm_joint_velocities_topic)" />
+        <param name="arm_joint_position_topic" value="$(arg arm_joint_position_topic)" />
         <param name="motor_control_cmd_topic" value="$(arg motor_control_cmd_topic)" />
         <param name="drilling_command_topic" value="$(arg drilling_command_topic)" />
     </node>

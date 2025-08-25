@@ -10,7 +10,7 @@
     <!-- ================================================================= -->
 
     <!-- Communication Parameters -->
-    <arg name="port" default="/dev/ttyUSB0" />
+    <arg name="port" default="/dev/ttyTHS0" />
     <arg name="baudrate" default="115200" />
     <arg name="rate" default="10" />
     <arg name="heartbeat_message" default="roscan_bridge:running" />

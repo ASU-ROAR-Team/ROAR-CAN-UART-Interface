@@ -72,7 +72,7 @@ class RoscanNode:
 
         # ROS Subscribers
         # rospy.Subscriber(self.cmd_vel_topic, Float32MultiArray, self._keyboard_control_callback)
-        rospy.Subscriber(self.arm_joint_velocities_topic, PoseStamped, self._robot_arm_control_callback)
+        # rospy.Subscriber(self.arm_joint_velocities_topic, PoseStamped, self._robot_arm_control_callback)
         rospy.Subscriber(self.cmd_vel_topic, Float32MultiArray, self._keyboard_control_callback)
         rospy.Subscriber(self.arm_joint_position_topic, Float64MultiArray, self._robot_arm_control_callback)
         rospy.Subscriber(self.motor_control_cmd_topic, Float32MultiArray, self._motor_control_callback)
@@ -106,6 +106,7 @@ class RoscanNode:
         self.ROBOT_ARM_CONTROL_FRAME_ID = rospy.get_param("~robot_arm_control_frame_id", 0x004)
         
         # Topic names
+        # self.arm_joint_velocities_topic = rospy.get_param("~arm_joint_velocities_topic", "/arm_joint_velocities")
         self.gps_topic = rospy.get_param("~gps_topic", "gpsData")
         self.load_cells_topic = rospy.get_param("~load_cells_topic", "/load_cells")
         self.imu_topic = rospy.get_param("~imu_topic", "imuData")
@@ -258,17 +259,17 @@ class RoscanNode:
         else:
             rospy.logwarn(f"No DrillingStatus message handler found for frame ID 0x{frame_id:03X}")
 
-    # def _keyboard_control_callback(self, msg: Float32MultiArray) -> None:
-    #     """Handle keyboard control messages from ROS."""
-    #     rospy.loginfo("Float32MultiArray message received")
-    #     try:
-    #         can_frame = self.keyboard_control_parser.parse(msg)
-    #         if can_frame:
-    #             self.communication_manager.send_frame(can_frame.can_id, can_frame.data)
-    #         else:
-    #             rospy.logerr("Failed to parse Twist message into a CAN frame.")
-    #     except Exception as e:
-    #         rospy.logerr(f"Error in keyboard control callback: {e}")
+    def _keyboard_control_callback(self, msg: Float32MultiArray) -> None:
+        """Handle keyboard control messages from ROS."""
+        rospy.loginfo("Float32MultiArray message received")
+        try:
+            can_frame = self.keyboard_control_parser.parse(msg)
+            if can_frame:
+                self.communication_manager.send_frame(can_frame.can_id, can_frame.data)
+            else:
+                rospy.logerr("Failed to parse Twist message into a CAN frame.")
+        except Exception as e:
+            rospy.logerr(f"Error in keyboard control callback: {e}")
     
     def _robot_arm_control_callback(self, msg: Float64MultiArray) -> None:
         """Handle robot arm control messages from ROS."""

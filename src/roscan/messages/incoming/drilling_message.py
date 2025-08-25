@@ -16,7 +16,7 @@ class DrillingStatusMessage(BaseMessage):
     (weight) data, and publishes it as a roar_msgs/DrillingStatus ROS message.
     
     CAN Frame Structure:
-    - Bytes 0-1 (2 bytes): Height/depth value (unsigned integer, little-endian)
+    - Bytes 0-1 (2 bytes): Height/depth value (signed integer, little-endian)
     - Bytes 2-3 (2 bytes): Load cell value (unsigned integer, little-endian)
     """
 
@@ -57,15 +57,13 @@ class DrillingStatusMessage(BaseMessage):
                     f"Expected {expected_data_len} bytes, got {len(frame.data)}"
                 )
 
-            # Extract height/depth (first 2 bytes)
-            # Assuming the 2 bytes represent the height in millimeters (mm).
+            # Extract height/depth (first 2 bytes) as a SIGNED integer.
             # Convert to centimeters (cm) by dividing by 10.0.
-            height_raw_mm = int.from_bytes(frame.data[0:2], 'little')
+            height_raw_mm = int.from_bytes(frame.data[0:2], 'little', signed=True)
             current_height_cm = height_raw_mm / 10.0  # Convert mm to cm
 
-            # Extract load cell (next 2 bytes)
-            # Assuming the 2 bytes represent the weight directly in grams (g).
-            current_weight_g = int.from_bytes(frame.data[2:4], 'little')
+            # Extract load cell (next 2 bytes) as an UNSIGNED integer.
+            current_weight_g = int.from_bytes(frame.data[2:4], 'little', signed=False)
             current_weight_g = float(current_weight_g) # Ensure it's a float64 for the ROS message
 
             result = {

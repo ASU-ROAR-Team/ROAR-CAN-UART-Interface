@@ -100,10 +100,10 @@ class RoscanNode:
         self.ENCODER_FRAME_ID = rospy.get_param("~encoder_frame_id", 0x222)
         self.TEST_FRAME_ID = rospy.get_param("~test_frame_id", 0x123)
         self.LOAD_CELL_FRAME_ID = rospy.get_param("~load_cell_frame_id", 0xFAD)
-        self.MOTOR_CONTROL_FRAME_ID = rospy.get_param("~motor_control_frame_id", 0x6A5)
+        self.MOTOR_CONTROL_FRAME_ID = 0x6A5  #rospy.get_param("~motor_control_frame_id", 0x6A5)
         self.DRILLING_STATUS_FRAME_ID = rospy.get_param("~drilling_status_frame_id", 0x400) 
         self.DRILLING_COMMAND_FRAME_ID = rospy.get_param("~drilling_command_frame_id", 0x333)
-        self.ROBOT_ARM_CONTROL_FRAME_ID = rospy.get_param("~robot_arm_control_frame_id", 0x004)
+        self.ROBOT_ARM_CONTROL_FRAME_ID = 0x004  # rospy.get_param("~robot_arm_control_frame_id", 0x004)
         
         # Topic names
         # self.arm_joint_velocities_topic = rospy.get_param("~arm_joint_velocities_topic", "/arm_joint_velocities")
@@ -132,7 +132,7 @@ class RoscanNode:
         self.message_registry.register(DrillingStatusMessage(0x400, self.drilling_status_pub))
 
         # self.keyboard_control_parser = KeyboardControlMessage(0x100) # TODO: Get from params
-        self.robot_arm_control_message = RobotArmControlMessage(0x101)  # TODO: Get from params
+        self.robot_arm_control_message = RobotArmControlMessage(0x004)  # TODO: Get from params
         self.motor_control_message = OutgoingMotorControlMessage(self.MOTOR_CONTROL_FRAME_ID)  # TODO: Get from params
         self.drilling_command_message = OutgoingDrillingCommandMessage(0x333)  # TODO: Get from params
 

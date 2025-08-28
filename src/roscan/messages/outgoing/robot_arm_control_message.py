@@ -25,18 +25,23 @@ class RobotArmControlMessage(BaseMessage):
         # This is an outgoing message, so we don't need to handle anything
         pass
 
+    def map_value(self, value: float, from_min: float, from_max: float, to_min: float, to_max: float) -> int:
+        """
+        Maps a value from one range to another.
+        Ensures the returned value is an integer and clamped to the target range.
+        """
+        # Clamp the value to the source range
+        clamped_value = max(from_min, min(from_max, value))
+        # Perform the mapping
+        mapped_value = (clamped_value - from_min) * (to_max - to_min) / (from_max - from_min) + to_min
+        return int(round(mapped_value))
+
     def build(self, msg: Float64MultiArray) -> Optional[CanFrame]:
         """
         Builds an 8-byte CAN frame from a Float64MultiArray message containing 6 joint values.
 
-        The 6 joint values are packed into a 64-bit integer with the following layout:
-        - joint1: bits 0-9
-        - joint2: bits 10-19
-        - joint3: bits 20-29
-        - joint4: bits 30-39
-        - joint5: bits 40-49
-        - end_effector: bits 50-59
-        - unused: bits 60-63
+        Each joint value is converted from its specific range to degrees,
+        then mapped to a 10-bit integer in the range [0, 1023].
 
         Args:
             msg: The Float64MultiArray message to build the CAN frame from.
@@ -47,22 +52,46 @@ class RobotArmControlMessage(BaseMessage):
         try:
             if len(msg.data) != 6:
                 raise BuildingError(f"Expected 6 joint values, got {len(msg.data)}")
+            
+            # A list to store the final 10-bit integer values
+            mapped_values = []
+            
+            # Joint 1 (index 0): (-pi, pi) rad -> (-180, 180) deg -> (0, 1023)
+            # The input range is slightly different than (-pi, pi) for conversion so we will convert it from (-180,180)
+            joint1_deg = math.degrees(msg.data[0])
+            mapped_values.append(self.map_value(joint1_deg, -180.0, 180.0, 0.0, 1023.0))
+
+            # Joint 2 (index 1): (0, 1.5*pi) rad -> (0, 270) deg -> (0, 1023)
+            joint2_deg = math.degrees(msg.data[1])
+            mapped_values.append(self.map_value(joint2_deg, 0.0, 270.0, 0.0, 1023.0))
+
+            # Joint 3 (index 2): (0, 2*pi) rad -> (0, 360) deg -> (0, 1023)
+            joint3_deg = math.degrees(msg.data[2])
+            mapped_values.append(self.map_value(joint3_deg, 0.0, 360.0, 0.0, 1023.0))
+
+            # Joint 4 (index 3): (0, 2*pi) rad -> (0, 360) deg -> (0, 1023)
+            joint4_deg = math.degrees(msg.data[3])
+            mapped_values.append(self.map_value(joint4_deg, 0.0, 360.0, 0.0, 1023.0))
+            
+            # Joint 5 (index 4): (-pi, pi) rad -> (-180, 180) deg -> (0, 1023)
+            joint5_deg = math.degrees(msg.data[4])
+            mapped_values.append(self.map_value(joint5_deg, -180.0, 180.0, 0.0, 1023.0))
+            
+            # End Effector (index 5): (0, 360) deg -> (0, 1023)
+            # This value is already in degrees, so we only need to map it
+            mapped_values.append(self.map_value(msg.data[5], 0.0, 360.0, 0.0, 1023.0))
+
+            # Log the joint values after conversion to degrees
+            rospy.loginfo(f"J1: {joint1_deg:.2f}, J2: {joint2_deg:.2f}, J3: {joint3_deg:.2f}, J4: {joint4_deg:.2f}, J5: {joint5_deg:.2f}, EE: {msg.data[5]:.2f}")
 
             # Scale and pack the 6 joint values into a 64-bit integer
             packed_data = 0
-            
-            # Helper to scale a value from [-pi, pi] to [0, 1023]
-            def scale_joint_value(value):
-                scaled = ((value + math.pi) / (2 * math.pi)) * 1023
-                return int(max(0, min(1023, scaled)))
-
-            # Pack each joint value into its 10-bit slot
-            packed_data |= (scale_joint_value(msg.data[0]) & 0x3FF)
-            packed_data |= (scale_joint_value(msg.data[1]) & 0x3FF) << 10
-            packed_data |= (scale_joint_value(msg.data[2]) & 0x3FF) << 20
-            packed_data |= (scale_joint_value(msg.data[3]) & 0x3FF) << 30
-            packed_data |= (scale_joint_value(msg.data[4]) & 0x3FF) << 40
-            packed_data |= (scale_joint_value(msg.data[5]) & 0x3FF) << 50
+            packed_data |= (mapped_values[0] & 0x3FF)
+            packed_data |= (mapped_values[1] & 0x3FF) << 10
+            packed_data |= (mapped_values[2] & 0x3FF) << 20
+            packed_data |= (mapped_values[3] & 0x3FF) << 30
+            packed_data |= (mapped_values[4] & 0x3FF) << 40
+            packed_data |= (mapped_values[5] & 0x3FF) << 50
 
             # Convert the 64-bit integer to an 8-byte list (little-endian)
             can_data = list(packed_data.to_bytes(8, 'little'))
